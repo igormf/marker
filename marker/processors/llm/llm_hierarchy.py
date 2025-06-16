@@ -21,7 +21,7 @@ class LLMHierarchyProcessor(BaseLLMProcessor):
 Your task is to analyze the semantic structure of a legal document and output a **flat JSON list**, where each block is represented as an object that includes:
 
 - `block_id`: The original ID of the block.
-- `parent_block_id`: A str of IDs indicating the **immediate** semantic parent of this block. If the block is a top-level section, this will be None
+- `parent_block_id`: A str of ID indicating the **immediate** semantic parent of this block. If the block is a top-level section, this will be None
 
 ## Input Description
 
@@ -62,10 +62,8 @@ Your output **must be a single JSON array**. Each element in the array represent
 * **Section Headers:** Blocks identified as `SectionHeader` typically introduce new semantic sections and will serve as parent id for multiple following blocks
 * **Content Following Headers:** Any `Text` or `ListGroup` blocks that logically fall under a preceding `SectionHeader` should have that header as the parent id
 * **Numbered Sections/Subsections:** Pay close attention to numbering schemes (e.g., "1. Software License.", "1.1 Definitions.", "1.2 License Grant."). These indicate hierarchical relationships. Blocks pertaining to a subsection (e.g., "1.1 Definitions.") should be nested under their parent section (e.g., "1. Software License.").
+* **Nested Lists:** If there are mulitple levels of bullets - Such as Bullet 1, Sub bullets a and b, and Bullet 2, then bullets a and b should have bullet 1 as the parent
 * **Tables and Pictures:** If a `Table` or `Picture` block is directly associated with a specific semantic section (e.g., a table listing licensed software under a heading), it should be nested under that section.
-* **Standalone Blocks:** Blocks that do not logically fall under any specific section but are part of the overall document should have no parent id
-* **Main Document Title:** If there is a main document title, it should be the parent for all top level section headers
-* **Lists:** ListItem elements should always have a parent - Either another listitem (In the case of nested lists), or a ListGroup
 
 ## Example Output
 
@@ -95,6 +93,7 @@ Your output **must be a single JSON array**. Each element in the array represent
 ```
 
 ## Input
+
 """
     def formatted_block(self, block: Block, document: Document):
       block_raw_text = block.raw_text(document)
@@ -104,15 +103,12 @@ Your output **must be a single JSON array**. Each element in the array represent
       if not self.use_llm or self.llm_service is None:
           return
 
-      text = ""
+      text = "\n"
       for page in document.pages:
           for block in page.structure_blocks(document):
               if block.ignore_for_output:
                   continue
               text += self.formatted_block(block, document)
-              if block.block_type == BlockTypes.ListGroup:
-                  for sub_block in block.structure_blocks(document):
-                      text += self.formatted_block(sub_block, document)
 
       response = self.llm_service(self.llm_hierarchy_prompt + text, None, None, LLMHierarchySchema)
       document.llm_hierarchy = response['document']
