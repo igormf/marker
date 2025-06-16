@@ -29,11 +29,14 @@ You will be provided with the identified blocks of a document, where each block 
 You will also be provided with a **snippet** of the text inside of each block, for context.
 Example:
 ```
-/page/0/SectionHeader/1:
-Title text
+/page/0/SectionHeader/0:
+Provisions of the Agreement
 
 /page/0/Text/1:
-Lorem ipsum....
+Provision 1: 1st provision
+
+/page/0/Text/2:
+Provision a: Sub provision of 1st provision
 
 ...
 ```
@@ -49,8 +52,12 @@ Your output **must be a single JSON array**. Each element in the array represent
             "parent_block_id": null
         },
         {
-            "block_id": "/page/0/SectionHeader/1",
+            "block_id": "/page/0/Text/1",
             "parent_block_id": "/page/0/SectionHeader/0"
+        },
+        {
+            "block_id": "/page/0/Text/2",
+            "parent_block_id": "/page/0/Text/1"
         },
         ...
     ]
@@ -64,33 +71,6 @@ Your output **must be a single JSON array**. Each element in the array represent
 * **Numbered Sections/Subsections:** Pay close attention to numbering schemes (e.g., "1. Software License.", "1.1 Definitions.", "1.2 License Grant."). These indicate hierarchical relationships. Blocks pertaining to a subsection (e.g., "1.1 Definitions.") should be nested under their parent section (e.g., "1. Software License.").
 * **Nested Lists:** If there are mulitple levels of bullets - Such as Bullet 1, Sub bullets a and b, and Bullet 2, then bullets a and b should have bullet 1 as the parent
 * **Tables and Pictures:** If a `Table` or `Picture` block is directly associated with a specific semantic section (e.g., a table listing licensed software under a heading), it should be nested under that section.
-
-## Example Output
-
-```json
-[
-  {
-    "block_id": "/page/0/Picture/0",
-    "parent_block_id": null
-  },
-  {
-    "block_id": "/page/0/SectionHeader/1",
-    "parent_block_id": null
-  },
-  {
-    "block_id": "/page/0/Text/2",
-    "parent_block_id": "/page/0/SectionHeader/1"
-  },
-  {
-    "block_id": "/page/0/SectionHeader/3",
-    "parent_block_id": null
-  },
-  {
-    "block_id": "/page/0/Text/4",
-    "parent_block_id": "/page/0/SectionHeader/3"
-  },
-]
-```
 
 ## Input
 
