@@ -69,6 +69,27 @@ class BlockId(BaseModel):
     def to_path(self):
         return str(self).replace('/', '_')
 
+    @classmethod
+    def from_str(cls, s: str) -> "BlockId":
+        """
+        Create a BlockId instance from a string in the form:
+        /page/{page_id}/{block_type}/{block_id}
+        """
+        parts = s.strip("/").split("/")
+
+        if len(parts) != 4 or parts[0] != "page":
+            raise ValueError(f"Invalid string format: {s}")
+
+        try:
+            page_id = int(parts[1])
+            block_type_str = parts[2]
+            block_id = int(parts[3])
+            block_type = BlockTypes[block_type_str]
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Invalid string format: {s}") from e
+
+        return cls(page_id=page_id, block_type=block_type, block_id=block_id)
+
 
 class Block(BaseModel):
     polygon: PolygonBox

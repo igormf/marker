@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from marker.schema import BlockTypes
 from marker.schema.blocks import Block
+from marker.schema.blocks.base import BlockId
 from marker.schema.document import Document
 from marker.processors.llm import BaseLLMProcessor
 
@@ -69,26 +70,47 @@ Your output **must be a single JSON array**. Each element in the array represent
 * **Section Headers:** Blocks identified as `SectionHeader` typically introduce new semantic sections and will serve as parent id for multiple following blocks
 * **Content Following Headers:** Any `Text` or `ListGroup` blocks that logically fall under a preceding `SectionHeader` should have that header as the parent id
 * **Numbered Sections/Subsections:** Pay close attention to numbering schemes (e.g., "1. Software License.", "1.1 Definitions.", "1.2 License Grant."). These indicate hierarchical relationships. Blocks pertaining to a subsection (e.g., "1.1 Definitions.") should be nested under their parent section (e.g., "1. Software License.").
-* **Nested Lists:** If there are mulitple levels of bullets - Such as Bullet 1, Sub bullets a and b, and Bullet 2, then bullets a and b should have bullet 1 as the parent
 * **Tables and Pictures:** If a `Table` or `Picture` block is directly associated with a specific semantic section (e.g., a table listing licensed software under a heading), it should be nested under that section.
+* **Nested Lists:** If there are mulitple levels of bullets - Such as Bullet 1, Sub bullets a and b, and Bullet 2, then bullets a and b should have bullet 1 as the parent
 
 ## Input
 
 """
+
     def formatted_block(self, block: Block, document: Document):
-      block_raw_text = block.raw_text(document)
-      return f"{block.id}:\n{block_raw_text[:20]}" + "\n\n"
+        block_raw_text = block.raw_text(document)
+        return f"{block.id}:\n{block_raw_text[:20]}" + "\n\n"
+
+    def unroll_list_groups(self, llm_hierarchy: List[dict], document: Document):
+        updated_llm_hierarchy = []
+        for hierarchy_dict in llm_hierarchy:
+            block_id = BlockId.from_str(hierarchy_dict['block_id'])
+            if document.get_block(block_id).block_type != BlockTypes.ListGroup:
+                updated_llm_hierarchy.append(hierarchy_dict)
+                continue
+
+            parent_id = hierarchy_dict['parent_block_id']
+            for list_item_block in document.get_block(block_id).structure_blocks(document):
+                updated_llm_hierarchy.append({
+                    'block_id': str(list_item_block.id),
+                    'parent_block_id': parent_id
+                })
+
+        return updated_llm_hierarchy
 
     def __call__(self, document: Document, **kwargs):
-      if not self.use_llm or self.llm_service is None:
-          return
+        if not self.use_llm or self.llm_service is None:
+            return
 
-      text = "\n"
-      for page in document.pages:
-          for block in page.structure_blocks(document):
-              if block.ignore_for_output:
-                  continue
-              text += self.formatted_block(block, document)
+        text = "\n"
+        for page in document.pages:
+            for block in page.structure_blocks(document):
+                if block.ignore_for_output:
+                    continue
+                text += self.formatted_block(block, document)
 
-      response = self.llm_service(self.llm_hierarchy_prompt + text, None, None, LLMHierarchySchema)
-      document.llm_hierarchy = response['document']
+        response = self.llm_service(self.llm_hierarchy_prompt + text, None, None, LLMHierarchySchema)
+        llm_hierarchy = response['document']
+        llm_hierarchy = self.unroll_list_groups(llm_hierarchy, document)
+        
+        document.llm_hierarchy = llm_hierarchy
