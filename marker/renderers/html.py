@@ -99,6 +99,9 @@ class HTMLRenderer(BaseRenderer):
 
     def merge_continuations(self, soup):
         for p in soup.find_all("p", class_="has-continuation"):
+            if p.get("block-type") not in ["Text", "TextInlineMath"]:
+                # No special handling for list groups
+                continue
             next_p = p.find_next_sibling("p")
             next_tag = p.find_next_sibling()
             if next_tag and next_tag.name == "p" and next_p.get("block-type") in ["Text", "TextInlineMath"]:
@@ -107,7 +110,8 @@ class HTMLRenderer(BaseRenderer):
 
                 next_p.decompose()
 
-            p.attrs.pop('class', None)
+                # Only remove the continuation class if we merge
+                p.attrs.pop('class', None)
 
     def __call__(self, document) -> HTMLOutput:
         document_output = document.render()
