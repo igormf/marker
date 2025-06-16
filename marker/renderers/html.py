@@ -97,10 +97,23 @@ class HTMLRenderer(BaseRenderer):
 
         return output, images
 
+    def merge_continuations(self, soup):
+        for p in soup.find_all("p", class_="has-continuation"):
+            next_p = p.find_next_sibling("p")
+            next_tag = p.find_next_sibling()
+            if next_tag and next_tag.name == "p" and next_p.get("block-type") in ["Text", "TextInlineMath"]:
+                for child in next_p.contents:
+                    p.append(child)
+
+                next_p.decompose()
+
+            p.attrs.pop('class', None)
+
     def __call__(self, document) -> HTMLOutput:
         document_output = document.render()
         full_html, images = self.extract_html(document, document_output)
         soup = BeautifulSoup(full_html, 'html.parser')
+        self.merge_continuations(soup)
         full_html = soup.prettify() # Add indentation to the HTML
         return HTMLOutput(
             html=full_html,
