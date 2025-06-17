@@ -111,13 +111,21 @@ class ListProcessor(BaseProcessor):
                     stack.append(list_item_block)
 
                 # Inject dummy blocks if current block has continuation
+                # This only works when the continuation is in a new page
                 if getattr(block, "has_continuation", False):
                     # This is guaranteed to be a listgroup due to how the flag is set, double checking anyways
                     next_block = document.get_next_block(block, self.ignored_block_types)
-                    if next_block is None or next_block.block_type not in self.block_types:
+                    if next_block is None or next_block.block_type not in self.block_types or next_block.page_id == block.page_id:
                         continue
 
                     next_block_page = document.get_page(next_block.page_id)
+                    # Shift the xstart of the next block to the left, in case it is missing some nesting levels
+                    next_block.polygon = PolygonBox.from_bbox([
+                        block.polygon.x_start,
+                        next_block.polygon.y_start,
+                        next_block.polygon.x_end,
+                        next_block.polygon.y_end
+                    ])
                     next_block_x_start = next_block.polygon.x_start
                     next_block_x_end = next_block.polygon.x_end
                     next_block_y_start = next_block.polygon.y_start
