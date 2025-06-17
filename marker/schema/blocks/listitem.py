@@ -33,12 +33,15 @@ class ListItem(Block):
             template = template.replace("<li>", "").replace("</li>", "")
 
         el_attr = f" block-type='{self.block_type}'"
-        if self.list_indent_level:
-            return f"<ul><li{el_attr} class='list-indent-{self.list_indent_level}'>{template}</li></ul>"
-        
-        # We insert blank tags to properly nest lists broken across pages
-        # Unwrap tags with no lines of their own, but only a nested list inside
-        if 'Line' in template:
+        has_line = "Line" in template
+        has_indent = self.list_indent_level > 0
+
+        # If there is no line in the template, only return the nested list.
+        if has_indent:
+            if has_line:
+                return f"<ul><li{el_attr} class='list-indent-{self.list_indent_level}'>{template}</li></ul>"
+            return f"<ul>{template}</ul>"
+
+        if has_line:
             return f"<li{el_attr}>{template}</li>"
-        else:
-            return template
+        return template
