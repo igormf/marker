@@ -73,8 +73,12 @@ class ListProcessor(BaseProcessor):
                     if list_item_block.block_type != BlockTypes.ListItem:
                         continue
 
+                    print(f'At {list_item_id}: {list_item_block.polygon.x_start}')
                     while stack and list_item_block.polygon.x_start <= stack[-1].polygon.x_start + (self.min_x_indent * page.polygon.width):
+                        print(f'{stack[-1].polygon.x_start} + {self.min_x_indent * page.polygon.width}')
+                        print(f'Popped {stack[-1].id}')
                         stack.pop()
+                    print('-' * 100)
 
                     if stack and list_item_block.polygon.y_start > stack[-1].polygon.y_start:
                         list_item_block.list_indent_level = stack[-1].list_indent_level
@@ -118,15 +122,18 @@ class ListProcessor(BaseProcessor):
                     next_block_x_end = next_block.polygon.x_end
                     next_block_y_start = next_block.polygon.y_start
                     for level in range(max_indent_level + 1):
-                        rel_x_start = min(indent_xstarts[level]) - block.polygon.x_start - 3
+                        rel_x_start = max(indent_xstarts[level]) - block.polygon.x_start
+                        offset_top = 10 * (max_indent_level - level + 1)
+                        offset_bottom = 5 * (max_indent_level - level + 1)
 
                         polygon = PolygonBox.from_bbox([
                             next_block_x_start + rel_x_start,
-                            next_block_y_start - (10 * (level + 1)),
+                            next_block_y_start - offset_top,
                             next_block_x_end,
-                            next_block_y_start - (5 * (level + 1))
+                            next_block_y_start - offset_bottom,
                         ])
                         dummy_block = next_block_page.add_block(ListItem, polygon)
                         next_block.structure.insert(level, dummy_block.id)
                         # Let the next iteration re-calculate. This is the default
                         dummy_block.list_indent_level = 0
+                        print(f'Adding {polygon.bbox} to {next_block.id}')

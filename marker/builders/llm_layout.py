@@ -91,6 +91,32 @@ Potential labels:
 
 Respond only with one of `Figure`, `Picture`, `ComplexRegion`, `Table`, or `Form`.
 """
+    text_list_item_relabeling_prompt: Annotated[
+        str,
+        "The prompt to use for relabelling text blocks as list items.",
+    ] = """You're a layout expert specializing in document structure and continuity across pages.
+Your task is to determine whether a given text block should be relabelled as a `ListItem`, based on its position and content.
+
+You will be provided with an image of a text block that is at the top of a page.
+The **following** element (on the same page) is also a `ListItem`. Your job is to evaluate whether the current block is part of that list - part of a bullet point from a preceeding page that was cut off
+
+**Important clues to consider:**
+- If the text in the block ends abruptly or seems incomplete, it might be a truncated list item.
+- If the content flows naturally into the next page’s list item, the current block is likely a list item as well.
+- Do not invent labels. You are only deciding whether the current label should be changed to `ListItem`.
+
+**Instructions**
+1. Analyze the content of the provided text block.
+2. Consider the structure, continuity, and how the text might relate to a following list item on the next page.
+3. Determine whether the text is part of a list structure and should be relabelled as a `ListItem`.
+4. Write a brief explanation of your reasoning.
+5. Output one of two labels: `ListItem` or retain the current label (e.g. `Text`, `Paragraph`, etc.), if you believe no change is necessary.
+
+Your goal is to improve the document structure by correcting any labeling inconsistencies caused by page breaks and truncated formatting.
+
+Respond only with one of `ListItem`, `Text`, or `TextInlineMath`
+"""
+
 
     def __init__(
         self, layout_model: LayoutPredictor, llm_service: BaseService, config=None
@@ -144,12 +170,35 @@ Respond only with one of `Figure`, `Picture`, `ComplexRegion`, `Table`, or `Form
                                     block,
                                 )
                             )
+                        elif (
+                            block.block_type in [BlockTypes.Text, BlockTypes.TextInlineMath]
+                            and block.block_id == 0
+                        ):
+                            next_block = document.get_next_block(block, ignored_block_types=[BlockTypes.PageHeader, BlockTypes.PageFooter])
+
+                            if (next_block and next_block.block_type != BlockTypes.ListItem):
+                                continue
+
+                            futures.append(
+                                executor.submit(
+                                    self.process_text_list_item_relabeling,
+                                    document,
+                                    page,
+                                    block,
+                                )
+                            )
 
             for future in as_completed(futures):
                 future.result()  # Raise exceptions if any occurred
                 pbar.update(1)
 
         pbar.close()
+
+    def process_text_list_item_relabeling(
+        self, document: Document, page: PageGroup, block: Block
+    ):
+        prompt = self.text_list_item_relabeling_prompt
+        return self.process_block_relabeling(document, page, block, prompt)
 
     def process_block_topk_relabeling(
         self, document: Document, page: PageGroup, block: Block
