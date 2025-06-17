@@ -73,12 +73,8 @@ class ListProcessor(BaseProcessor):
                     if list_item_block.block_type != BlockTypes.ListItem:
                         continue
 
-                    print(f'At {list_item_id}: {list_item_block.polygon.x_start}')
                     while stack and list_item_block.polygon.x_start <= stack[-1].polygon.x_start + (self.min_x_indent * page.polygon.width):
-                        print(f'{stack[-1].polygon.x_start} + {self.min_x_indent * page.polygon.width}')
-                        print(f'Popped {stack[-1].id}')
                         stack.pop()
-                    print('-' * 100)
 
                     if stack and list_item_block.polygon.y_start > stack[-1].polygon.y_start:
                         list_item_block.list_indent_level = stack[-1].list_indent_level
@@ -144,4 +140,3 @@ class ListProcessor(BaseProcessor):
                         next_block.structure.insert(level, dummy_block.id)
                         # Let the next iteration re-calculate. This is the default
                         dummy_block.list_indent_level = 0
-                        print(f'Adding {polygon.bbox} to {next_block.id}')
