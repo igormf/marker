@@ -35,4 +35,10 @@ class ListItem(Block):
         el_attr = f" block-type='{self.block_type}'"
         if self.list_indent_level:
             return f"<ul><li{el_attr} class='list-indent-{self.list_indent_level}'>{template}</li></ul>"
-        return f"<li{el_attr}>{template}</li>"
+        
+        # We insert blank tags to properly nest lists broken across pages
+        # Unwrap tags with no lines of their own, but only a nested list inside
+        if 'Line' in template:
+            return f"<li{el_attr}>{template}</li>"
+        else:
+            return template
