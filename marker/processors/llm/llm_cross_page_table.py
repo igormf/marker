@@ -1,10 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Annotated, List, Tuple, Literal, Dict, Any, Optional
-from dataclasses import dataclass
+from typing import Annotated, List, Tuple, Literal, Optional
 
 from pydantic import BaseModel
 from tqdm import tqdm
-from PIL import Image
 
 from marker.output import json_to_html
 from marker.processors.llm import BaseLLMComplexBlockProcessor
@@ -30,22 +28,6 @@ class CorrectionSchema(BaseModel):
     corrections: List[CorrectionItemSchema]
 
 
-@dataclass
-class CellLocation:
-    """Represents a cell location in a table"""
-    table_index: int  # 0 for first table, 1 for second table
-    row: int
-    col: int
-
-
-@dataclass 
-class CellCorrection:
-    """Represents a single cell correction operation"""
-    type: Literal["merge_cells", "move_cell", "remove_cell", "move_text_fragment"]
-    source: CellLocation
-    target: Optional[CellLocation] = None
-    action: Literal["append", "prepend", "replace"] = "append"
-    text_fragment: Optional[str] = None
 
 
 class LLMCrossPageTableProcessor(BaseLLMComplexBlockProcessor):
@@ -158,15 +140,13 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
         # Find consecutive table pairs that might need correction
         table_pairs = self.find_cross_page_table_pairs(document)
         
-        # with ThreadPoolExecutor(max_workers=self.max_concurrency) as executor:
-        #     for future in as_completed([
-        #         executor.submit(self.process_table_pair, document, table1, table2)
-        #         for table1, table2 in table_pairs
-        #     ]):
-        #         future.result()  # Raise exceptions if any occurred
-        #         pbar.update(1)
-        for table1, table2 in table_pairs:
-            self.process_table_pair(document, table1, table2)
+        with ThreadPoolExecutor(max_workers=self.max_concurrency) as executor:
+            for future in as_completed([
+                executor.submit(self.process_table_pair, document, table1, table2)
+                for table1, table2 in table_pairs
+            ]):
+                future.result()  # Raise exceptions if any occurred
+                pbar.update(1)
         
         pbar.close()
 
@@ -437,7 +417,7 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
         # Add row IDs to each <tr> element
         row_counter = 0
         
-        def replace_tr(match):
+        def replace_tr(_):
             nonlocal row_counter
             result = f'<tr id="row-{row_counter}">'
             row_counter += 1
@@ -449,31 +429,3 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
         
         return modified_html
     
-    def find_better_target_cell(self, cells: List[TableCell], current_target: TableCell, text_fragment: str, col: int) -> TableCell:
-        """Find a better target cell if the current one seems inappropriate"""
-        current_content = ' '.join(current_target.text_lines or []).lower()
-        
-        # Skip if current target looks like a case number or has lots of text (likely complete)
-        if any(pattern in current_content for pattern in ['case#', 'tax:', 'action', 'return']):
-            print(f"DEBUG: Current target looks like a case/tax entry, searching for incomplete product...")
-            
-            # Look for cells that seem incomplete (shorter, product-like names)
-            candidates = []
-            for cell in cells:
-                if cell.col_id == col and cell != current_target:
-                    cell_text = ' '.join(cell.text_lines or [])
-                    cell_text_lower = cell_text.lower()
-                    
-                    # Look for product-like entries that seem incomplete
-                    if (any(keyword in cell_text_lower for keyword in ['osv', 'platform', 'app', 'software']) and
-                        not any(pattern in cell_text_lower for pattern in ['case#', 'tax:', 'action', 'return']) and
-                        len(cell_text) < len(current_content)):  # Prefer shorter (potentially incomplete) entries
-                        candidates.append((cell, len(cell_text)))
-            
-            # Return the shortest candidate (most likely to be incomplete)
-            if candidates:
-                best_candidate = min(candidates, key=lambda x: x[1])[0]
-                print(f"DEBUG: Found better candidate: {' '.join(best_candidate.text_lines or [])}")
-                return best_candidate
-        
-        return current_target
