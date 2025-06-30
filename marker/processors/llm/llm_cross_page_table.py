@@ -202,59 +202,46 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
 
     def process_table_pair(self, document: Document, table1: Block, table2: Block):
         """Process a pair of tables for potential corrections"""
-        print(f"\n=== DEBUG: Analyzing table pair for corrections ===")
-        print(f"Table 1: {table1.id} on page {table1.page_id}")
-        print(f"Table 2: {table2.id} on page {table2.page_id}")
         
         cells1 = table1.contained_blocks(document, (BlockTypes.TableCell,))
         cells2 = table2.contained_blocks(document, (BlockTypes.TableCell,))
         
         if not cells1 or not cells2:
-            print("DEBUG: Skipping - missing cells")
             return
         
         # Get images
         try:
             image1 = table1.get_image(document, highres=False)
             image2 = table2.get_image(document, highres=False)
-            print(f"DEBUG: Images extracted - table1: {image1.size}, table2: {image2.size}")
         except Exception as e:
-            print(f"DEBUG: Error getting images: {e}")
             return
         
         # Get HTML representations
         try:
             html1 = self.render_html_with_row_ids(table1, document)
             html2 = self.render_html_with_row_ids(table2, document)
-            print(f"DEBUG: HTML rendered - table1: {len(html1)} chars, table2: {len(html2)} chars")
         except Exception as e:
-            print(f"DEBUG: Error rendering HTML: {e}")
             return
         
         # Create prompt
         prompt = self.correction_prompt.replace("{{table1_html}}", html1).replace("{{table2_html}}", html2)
         # Call LLM
         try:
-            print("DEBUG: Calling LLM for correction analysis...")
             response = self.llm_service(
                 prompt,
                 [image1, image2],
                 table1,
                 CorrectionSchema,
             )
-            print(f"DEBUG: LLM response: {response}")
         except Exception as e:
-            print(f"DEBUG: LLM service error: {e}")
             return
         
         if not response or "corrections" not in response:
-            print("DEBUG: Invalid response format")
             return
         
         # Apply corrections
         corrections_data = response.get("corrections", [])
         if corrections_data:
-            print(f"DEBUG: Applying {len(corrections_data)} corrections...")
             # Convert dict responses to schema objects
             corrections = []
             for correction_dict in corrections_data:
@@ -262,13 +249,10 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
                     correction = CorrectionItemSchema(**correction_dict)
                     corrections.append(correction)
                 except Exception as e:
-                    print(f"DEBUG: Error parsing correction {correction_dict}: {e}")
                     continue
             
             if corrections:
                 self.apply_corrections(cells1, cells2, corrections)
-        else:
-            print("DEBUG: No corrections needed")
 
     def apply_corrections(self, cells1: List[TableCell], cells2: List[TableCell], corrections: List[CorrectionItemSchema]):
         """Apply the specified corrections to the table cells"""
@@ -276,7 +260,7 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
             try:
                 self.apply_single_correction(cells1, cells2, correction)
             except Exception as e:
-                print(f"DEBUG: Error applying correction {correction}: {e}")
+                pass
     
     def apply_single_correction(self, cells1: List[TableCell], cells2: List[TableCell], correction: CorrectionItemSchema):
         """Apply a single correction operation"""
@@ -288,7 +272,6 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
         source_cell = self.find_cell_at_location(source_cells, source_loc.row, source_loc.col)
         
         if not source_cell:
-            print(f"DEBUG: Could not find source cell at {source_loc}")
             return
         
         if correction_type == "merge_cells":
@@ -297,7 +280,6 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
             target_cell = self.find_cell_at_location(target_cells, target_loc.row, target_loc.col)
             
             if not target_cell:
-                print(f"DEBUG: Could not find target cell at {target_loc}")
                 return
             
             action = correction.action
@@ -319,7 +301,6 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
             # Clear the source cell
             source_cell.text_lines = []
             
-            print(f"DEBUG: Merged '{source_text}' into target cell using action '{action}'")
         
         elif correction_type == "move_cell":
             # Similar to merge_cells but replaces target content
@@ -330,30 +311,25 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
             if target_cell:
                 target_cell.text_lines = source_cell.text_lines.copy()
                 source_cell.text_lines = []
-                print(f"DEBUG: Moved cell content from {source_loc} to {target_loc}")
         
         elif correction_type == "remove_cell":
             source_cell.text_lines = []
-            print(f"DEBUG: Removed cell content at {source_loc}")
         
         elif correction_type == "move_text_fragment":
             target_loc = correction.target
             text_fragment = correction.text_fragment
             
             if not target_loc or not text_fragment:
-                print(f"DEBUG: move_text_fragment requires target and text_fragment")
                 return
             
             target_cells = cells1 if target_loc.table_index == 0 else cells2
             target_cell = self.find_cell_at_location(target_cells, target_loc.row, target_loc.col)
             
             if not target_cell:
-                print(f"DEBUG: Could not find target cell at {target_loc}")
                 return
             # Find and remove the text fragment from source cell
             source_text = " ".join(source_cell.text_lines) if source_cell.text_lines else ""
             if text_fragment not in source_text:
-                print(f"DEBUG: Text fragment '{text_fragment}' not found in source cell")
                 return
             
             # Remove the fragment from source (with some cleanup)
@@ -377,7 +353,6 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
             elif action == "replace":
                 target_cell.text_lines = [text_fragment]
             
-            print(f"DEBUG: Moved text fragment '{text_fragment}' from {source_loc} to {target_loc} using action '{action}'")
     
     def find_cell_at_location(self, cells: List[TableCell], row: int, col: int) -> TableCell:
         """Find a cell at the specified row/column location"""
@@ -386,18 +361,12 @@ Analyze the images and HTML, then provide corrections for any cell boundary erro
             max_row = max(cell.row_id for cell in cells) if cells else -1
             row = max_row + row + 1
         
-        print(f"DEBUG: Looking for cell at row {row}, col {col}")
-        
         # Create a simple lookup dictionary
         cell_lookup = {(cell.row_id, cell.col_id): cell for cell in cells}
         
         if (row, col) in cell_lookup:
-            found_cell = cell_lookup[(row, col)]
-            print(f"DEBUG: Found cell: {' '.join(found_cell.text_lines or [])}")
-            return found_cell
+            return cell_lookup[(row, col)]
         
-        print(f"DEBUG: No cell found at row {row}, col {col}")
-        print(f"DEBUG: Available cells: {list(cell_lookup.keys())}")
         return None
     
     def find_cell_by_content(self, cells: List[TableCell], content_pattern: str, col: int) -> TableCell:
