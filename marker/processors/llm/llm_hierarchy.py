@@ -74,16 +74,17 @@ Your output **must be a single JSON array**. Each element in the array represent
 - It is **crucial** to get the hierarchical nesting in numbered sections correctly
 - The top level sections (1, 2, 3 ...) should have a common parent, such as the document title, or no parent at all. It is important to be consistent here, and follow the same for all the top level sections
 - Carefully mark text broken into two elements (due to page/column break) as per the rules above.
+- Ensure that sub-list items are always marked with an appropriate parent
 ## Input
 
 """
 
     def formatted_block(self, block: Block, document: Document):
         block_raw_text = block.raw_text(document)
-        if len(block_raw_text) <= 100:
+        if len(block_raw_text) <= 200:
             formatted_text = block_raw_text
         else:
-            formatted_text = block_raw_text[:50] + "..." + block_raw_text[-50:]
+            formatted_text = block_raw_text[:100] + "..." + block_raw_text[-100:]
         return f"{block.id}:\n{formatted_text}\n\n"
 
     def unroll_list_groups(self, llm_hierarchy: List[dict], document: Document):
