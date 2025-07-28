@@ -17,7 +17,7 @@ class DocumentOutput(BaseModel):
 
 class TocItem(BaseModel):
     title: str
-    heading_level: int
+    heading_level: int | None
     page_id: int
     polygon: List[List[float]]
 
